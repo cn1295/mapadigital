@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa Digital — Cartografía de los Estudios de Medios Digitales en Argentina</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root{
+  --ink:#10141c;
+  --ink-soft:#1b2230;
+  --line:#2c3547;
+  --paper:#eee7d6;
+  --paper-dim:#c9c0a8;
+  --signal:#ffb238;
+  --signal-dim:#7a5a1e;
+  --teal:#4fb8a6;
+  --serif:'Source Serif 4','Iowan Old Style',Georgia,serif;
+  --mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+  --sans:'Inter','Helvetica Neue',Arial,sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--ink);color:var(--paper);font-family:var(--sans);}
+::selection{background:var(--signal);color:var(--ink);}
+a{color:var(--signal);}
+
+header{padding:64px 6vw 40px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:18px;}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(32px,5vw,56px);line-height:1.05;margin:0 0 18px;max-width:19ch;}
+header p.lede{font-family:var(--serif);font-size:19px;line-height:1.55;color:var(--paper-dim);max-width:64ch;margin:0 0 28px;}
+.stat-row{display:flex;flex-wrap:wrap;gap:0;border-top:1px solid var(--line);margin-top:32px;}
+.stat{flex:1 1 130px;padding:18px 22px 18px 0;border-right:1px solid var(--line);}
+.stat:last-child{border-right:none;}
+.stat .n{font-family:var(--mono);font-size:28px;color:var(--signal);display:block;}
+.stat .l{font-size:11.5px;color:var(--paper-dim);text-transform:uppercase;letter-spacing:.06em;}
+
+/* nav */
+nav{position:sticky;top:0;z-index:20;background:rgba(16,20,28,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:0 6vw;display:flex;gap:4px;overflow-x:auto;}
+nav button{
+  background:none;border:none;color:var(--paper-dim);font-family:var(--mono);font-size:12px;
+  letter-spacing:.06em;text-transform:uppercase;padding:16px 16px;cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;
+}
+nav button:hover{color:var(--paper);}
+nav button.active{color:var(--signal);border-bottom-color:var(--signal);}
+
+section{padding:48px 6vw;}
+section.dim{background:var(--ink-soft);}
+h2{font-family:var(--mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-dim);margin:0 0 8px;display:flex;align-items:center;gap:14px;}
+h2::after{content:'';flex:1;height:1px;background:var(--line);}
+.section-sub{font-family:var(--serif);font-size:16px;color:var(--paper-dim);margin:0 0 28px;max-width:62ch;}
+
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr;}}
+
+.card{background:var(--ink);border:1px solid var(--line);padding:22px 24px 18px;}
+.card h3{font-family:var(--sans);font-weight:600;font-size:14px;margin:0 0 4px;color:var(--paper);}
+.card .hint{font-size:11.5px;color:var(--paper-dim);margin-bottom:14px;}
+.chart-wrap{position:relative;height:280px;cursor:pointer;}
+.chart-wrap.tall{height:360px;}
+
+/* clickable-chart note */
+.click-note{font-family:var(--mono);font-size:10.5px;color:var(--paper-dim);text-align:center;margin-top:8px;}
+
+.finder-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--paper-dim);margin:0 0 8px;font-family:var(--mono);}
+.chip.disc-toggle.on{border-color:var(--signal);color:var(--signal);background:rgba(255,178,56,.1);}
+
+.collab-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;margin-top:10px;}
+.collab-card{border:1px solid var(--line);background:var(--ink-soft);padding:18px 20px;}
+.collab-card .cname{font-family:var(--serif);font-size:18px;color:var(--paper);margin:0 0 4px;cursor:pointer;}
+.collab-card .cname:hover{color:var(--signal);}
+.collab-card .cinst{font-size:12px;color:var(--paper-dim);margin-bottom:10px;}
+.collab-card .cstats{display:flex;gap:14px;font-family:var(--mono);font-size:11.5px;color:var(--teal);margin-bottom:10px;}
+.collab-card .ctopics{display:flex;flex-wrap:wrap;gap:5px;}
+.collab-card .ctopics span{font-size:10.5px;border:1px solid var(--line);padding:2px 7px;color:var(--paper-dim);}
+.collab-empty{color:var(--paper-dim);font-family:var(--sans);font-size:14px;padding:24px 0;}
+
+.graph-wrap{position:relative;border:1px solid var(--line);background:var(--ink);height:640px;overflow:hidden;}
+#graphSvg{width:100%;height:100%;cursor:grab;}
+#graphSvg:active{cursor:grabbing;}
+.graph-tooltip{
+  position:absolute;pointer-events:none;background:var(--ink-soft);border:1px solid var(--signal-dim);
+  padding:8px 12px;font-family:var(--sans);font-size:12.5px;color:var(--paper);max-width:240px;
+  opacity:0;transition:opacity .1s;z-index:5;
+}
+.graph-tooltip.show{opacity:1;}
+.graph-tooltip b{color:var(--signal);display:block;font-family:var(--serif);font-size:14px;margin-bottom:2px;}
+.legend-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+#graphDiscLegend .chip{cursor:default;display:inline-flex;align-items:center;}
+#graphReset{display:inline-block;}
+.finder{display:flex;gap:10px;margin-bottom:18px;}
+.finder input{flex:1;background:var(--ink);border:1px solid var(--line);color:var(--paper);padding:13px 16px;font-family:var(--sans);font-size:15px;}
+.finder input::placeholder{color:var(--paper-dim);}
+.finder-hint{font-family:var(--mono);font-size:12px;color:var(--paper-dim);margin-bottom:24px;}
+.finder-hint b{color:var(--teal);}
+
+.profile{border:1px solid var(--signal-dim);background:linear-gradient(180deg,rgba(255,178,56,.06),transparent);padding:26px 28px;margin-bottom:32px;display:none;}
+.profile.show{display:block;}
+.profile .pname{font-family:var(--serif);font-size:24px;color:var(--signal);margin:0 0 4px;}
+.profile .pmeta{font-family:var(--mono);font-size:12px;color:var(--paper-dim);margin-bottom:18px;}
+.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+@media(max-width:760px){.profile-grid{grid-template-columns:1fr;}}
+.profile h4{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--paper-dim);margin:0 0 10px;font-family:var(--mono);}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;}
+.chip{border:1px solid var(--line);background:var(--ink-soft);color:var(--paper);padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:var(--sans);}
+.chip:hover{border-color:var(--teal);color:var(--teal);}
+.chip.topic{border-color:var(--signal-dim);color:var(--signal);background:none;cursor:default;}
+.profile-papers{margin-top:18px;}
+.profile-papers a, .profile-papers span.nolink{display:block;font-family:var(--serif);font-size:14.5px;color:var(--paper);padding:8px 0;border-bottom:1px solid var(--line);text-decoration:none;}
+.profile-papers a:hover{color:var(--signal);}
+.profile-papers .yy{color:var(--paper-dim);font-family:var(--mono);font-size:12px;margin-right:8px;}
+.clear-profile{font-family:var(--mono);font-size:12px;color:var(--paper-dim);background:none;border:1px solid var(--line);padding:6px 12px;cursor:pointer;}
+
+/* explorer */
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:22px;}
+.controls input[type=text]{flex:1 1 240px;background:var(--ink);border:1px solid var(--line);color:var(--paper);padding:11px 14px;font-family:var(--sans);font-size:14px;}
+.controls select{background:var(--ink);border:1px solid var(--line);color:var(--paper);padding:11px 12px;font-family:var(--sans);font-size:13px;}
+.controls input::placeholder{color:var(--paper-dim);}
+.active-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.active-filters .afchip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--teal);color:var(--teal);padding:4px 10px;cursor:pointer;}
+.active-filters .afchip::after{content:' ✕';}
+.count-line{font-family:var(--mono);font-size:12px;color:var(--paper-dim);margin-bottom:14px;}
+.count-line b{color:var(--teal);}
+
+.card-list{display:flex;flex-direction:column;gap:0;}
+.paper-card{border-bottom:1px solid var(--line);padding:18px 4px;display:grid;grid-template-columns:64px 1fr;gap:18px;}
+.paper-card .yr{font-family:var(--mono);color:var(--signal);font-size:15px;padding-top:2px;}
+.paper-card .ti{font-family:var(--serif);font-size:16px;line-height:1.35;margin:0 0 6px;color:var(--paper);text-decoration:none;display:block;}
+.paper-card .ti:hover{color:var(--signal);}
+.paper-card .meta{font-size:12.5px;color:var(--paper-dim);display:flex;flex-wrap:wrap;gap:6px 10px;font-family:var(--sans);align-items:center;}
+.link-tag{color:var(--teal);cursor:pointer;text-decoration:underline dotted;}
+.link-tag:hover{color:var(--signal);}
+.tag{border:1px solid var(--line);padding:2px 8px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--teal);cursor:pointer;}
+.tag.q{color:var(--signal);border-color:var(--signal-dim);}
+.tag:hover{border-color:var(--signal);}
+
+.pager{display:flex;justify-content:center;gap:10px;margin-top:24px;font-family:var(--mono);font-size:13px;}
+.pager button{background:none;border:1px solid var(--line);color:var(--paper);padding:8px 16px;cursor:pointer;font-family:var(--mono);}
+.pager button:disabled{opacity:.3;cursor:default;}
+.pager button:not(:disabled):hover{border-color:var(--signal);color:var(--signal);}
+
+footer{padding:32px 6vw 48px;font-family:var(--mono);font-size:12px;color:var(--paper-dim);border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Cartografía cienciométrica · Argentina · 2010–2025</div>
+  <h1>Mapa digital</h1>
+  <p class="lede">Una cartografía de los estudios sobre medios y tecnologías digitales producidos desde Argentina: qué disciplinas los abordan, quiénes investigan, en qué revistas publican y cómo se conectan entre sí.</p>
+  <div class="stat-row" id="statRow"></div>
+</header>
+
+<nav id="navBar">
+  <button data-target="secDisciplinas" class="active">Disciplinas</button>
+  <button data-target="secColaboradores">Buscar colaboradores</button>
+  <button data-target="secRed">Red de coautoría</button>
+  <button data-target="secAutores">Autores/as</button>
+  <button data-target="secRevistas">Revistas</button>
+  <button data-target="secExplorador">Explorador</button>
+</nav>
+
+<section id="secDisciplinas">
+  <h2>Disciplinas</h2>
+  <p class="section-sub">El campo de "estudios digitales" es interdisciplinario por naturaleza. Estos gráficos muestran qué áreas lo abordan y cómo evolucionó en el tiempo. Hacé click en cualquier barra o sector para filtrar el explorador.</p>
+  <div class="grid2" style="margin-bottom:28px;">
+    <div class="card">
+      <h3>Publicaciones por año</h3>
+      <div class="hint">click en una barra para filtrar por año</div>
+      <div class="chart-wrap"><canvas id="chartYear"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Disciplinas más frecuentes</h3>
+      <div class="hint">click en una barra para filtrar por disciplina</div>
+      <div class="chart-wrap"><canvas id="chartDisc"></canvas></div>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3>Métodos de investigación declarados</h3>
+      <div class="hint">click para filtrar</div>
+      <div class="chart-wrap"><canvas id="chartMethod"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Tipo de publicación</h3>
+      <div class="hint">click para filtrar</div>
+      <div class="chart-wrap"><canvas id="chartType"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<section class="dim" id="secColaboradores">
+  <h2>Buscar colaboradores</h2>
+  <p class="section-sub">Elegí una o más disciplinas (y, si querés, un país) para ver quién investiga ahí: ranking de autores/as por producción en ese cruce, con su institución y con quién ya trabajaron.</p>
+
+  <div style="margin-bottom:16px;">
+    <h4 class="finder-label">Disciplina(s)</h4>
+    <div class="chip-row" id="collabDiscPicker"></div>
+  </div>
+  <div class="grid2" style="margin-bottom:8px;align-items:end;">
+    <div>
+      <h4 class="finder-label">País (opcional)</h4>
+      <select id="collabCountry"><option value="">Todos los países</option></select>
+    </div>
+    <div>
+      <h4 class="finder-label">Ordenar por</h4>
+      <select id="collabSort">
+        <option value="papers">Más publicaciones en estos temas</option>
+        <option value="breadth">Mayor red de coautores/as</option>
+        <option value="recent">Más reciente</option>
+      </select>
+    </div>
+  </div>
+  <p class="finder-hint" id="collabCount" style="margin-top:18px;"></p>
+
+  <div class="collab-grid" id="collabResults"></div>
+</section>
+
+<section id="secRed">
+  <h2>Red de coautoría</h2>
+  <p class="section-sub">Cada punto es un autor/a con dos o más publicaciones; cada línea, una colaboración compartida. El color indica su disciplina principal y el tamaño, cuánto publicó. Arrastrá los nodos, hacé scroll para zoom, y clickeá uno para ver su perfil y resaltar su red directa.</p>
+
+  <div class="finder" style="margin-bottom:10px;">
+    <input type="text" id="graphSearch" placeholder="Buscar y centrar en un autor/a…" list="authorList" autocomplete="off">
+    <button class="clear-profile" id="graphReset">↺ reiniciar vista</button>
+  </div>
+  <div class="chip-row" id="graphDiscLegend" style="margin-bottom:14px;"></div>
+
+  <div class="graph-wrap" id="graphWrap">
+    <svg id="graphSvg"></svg>
+    <div class="graph-tooltip" id="graphTooltip"></div>
+  </div>
+  <p class="finder-hint">Mostrando <b id="graphNodeCount"></b> autores/as con 2+ publicaciones y <b id="graphEdgeCount"></b> colaboraciones entre ellos/as.</p>
+</section>
+
+<section class="dim" id="secAutores">
+  <h2>Autores/as</h2>
+  <p class="section-sub">Buscá un nombre para ver su perfil completo: temas, instituciones, coautores/as y artículos. Cada coautor es a su vez clickeable, así podés recorrer la red de colaboración.</p>
+  <div class="finder">
+    <input type="text" id="authorSearch" placeholder="Ej: Zunino, Esteban" list="authorList" autocomplete="off">
+    <button class="clear-profile" id="clearAuthorProfile" style="display:none;">✕ limpiar</button>
+  </div>
+  <datalist id="authorList"></datalist>
+  <div class="finder-hint">Base de <b id="hintAuthors"></b> autores/as · <b id="hintMulti"></b> con 2 o más publicaciones en este corpus</div>
+
+  <div class="profile" id="authorProfilePanel">
+    <p class="pname" id="aName"></p>
+    <p class="pmeta" id="aMeta"></p>
+    <div class="profile-grid">
+      <div>
+        <h4>Temas en los que trabaja</h4>
+        <div class="chip-row" id="aTopics"></div>
+        <h4 style="margin-top:18px;">Instituciones</h4>
+        <div class="chip-row" id="aInst"></div>
+      </div>
+      <div>
+        <h4>Coautores/as</h4>
+        <div class="chip-row" id="aCoauthors"></div>
+      </div>
+    </div>
+    <div class="profile-papers" id="aPapers"></div>
+  </div>
+
+  <div class="grid2" style="margin-top:8px;">
+    <div class="card">
+      <h3>Autores/as con más publicaciones</h3>
+      <div class="hint">click en un nombre para ver su perfil</div>
+      <div class="chart-wrap tall"><canvas id="chartAuthors"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Instituciones con más producción</h3>
+      <div class="hint">click para filtrar el explorador</div>
+      <div class="chart-wrap tall"><canvas id="chartInst"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<section id="secRevistas">
+  <h2>Revistas</h2>
+  <p class="section-sub">Dónde se publica este campo: las revistas con más artículos del corpus y su nivel de indexación. Buscá una revista para ver qué se publicó en ella.</p>
+  <div class="finder">
+    <input type="text" id="journalSearch" placeholder="Ej: International Journal of Communication" list="journalList" autocomplete="off">
+    <button class="clear-profile" id="clearJournalProfile" style="display:none;">✕ limpiar</button>
+  </div>
+  <datalist id="journalList"></datalist>
+
+  <div class="profile" id="journalProfilePanel">
+    <p class="pname" id="jName"></p>
+    <p class="pmeta" id="jMeta"></p>
+    <div class="profile-papers" id="jPapers"></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>Revistas con más artículos del corpus</h3>
+      <div class="hint">click en una barra para ver el perfil de la revista</div>
+      <div class="chart-wrap tall"><canvas id="chartJournals"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Nivel de indexación (cuartil Scimago)</h3>
+      <div class="hint">click en un sector para filtrar</div>
+      <div class="chart-wrap tall"><canvas id="chartQuartil"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<section class="dim" id="secExplorador">
+  <h2>Explorador de artículos</h2>
+  <p class="section-sub">Filtrá por tema, año, país o usá el buscador libre. Los filtros activos —vengan de acá o de los gráficos de arriba— aparecen como chips debajo.</p>
+  <div class="controls">
+    <input type="text" id="searchBox" placeholder="Buscar por título, autor/a o revista…">
+    <select id="filterYear"><option value="">Año (todos)</option></select>
+    <select id="filterDisc"><option value="">Tema (todos)</option></select>
+    <select id="filterCountry"><option value="">País (todos)</option></select>
+  </div>
+  <div class="active-filters" id="activeFilters"></div>
+  <div class="count-line"><b id="countN">0</b> artículos encontrados</div>
+  <div class="card-list" id="cardList"></div>
+  <div class="pager">
+    <button id="prevPage">← anterior</button>
+    <span id="pageInfo" style="align-self:center;color:var(--paper-dim);"></span>
+    <button id="nextPage">siguiente →</button>
+  </div>
+</section>
+
+<footer>
+  Datos consolidados a partir de búsquedas bibliométricas y enriquecimiento con OpenAlex · Sitio generado estáticamente — sin servidor, sin base de datos.
+</footer>
+
+<script src="data_min.js"></script>
+<script>
+// ============ helpers ============
+const COUNTRY_NAMES = {AR:'Argentina',ES:'España',US:'Estados Unidos',MX:'México',BR:'Brasil',CL:'Chile',CO:'Colombia',PE:'Perú',EC:'Ecuador',BO:'Bolivia',UY:'Uruguay',PY:'Paraguay',VE:'Venezuela',IT:'Italia',DE:'Alemania',FR:'Francia',GB:'Reino Unido',CA:'Canadá',JP:'Japón',TW:'Taiwán',IL:'Israel',FI:'Finlandia',CN:'China',AU:'Australia',NL:'Países Bajos',PT:'Portugal',RO:'Rumania',NZ:'Nueva Zelanda',AT:'Austria'};
+function countryLabel(code){return COUNTRY_NAMES[code] || code;}
+function primaryCountry(p){ if(!p) return null; return p.split(';')[0].trim(); }
+function topCounts(arr, n){ const m={}; arr.forEach(v=>{ if(v) m[v]=(m[v]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n); }
+function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ============ indexes ============
+const authorIndex = {};
+DATA.forEach((d, idx)=>{
+  (d.au||[]).forEach(name=>{
+    if(!authorIndex[name]) authorIndex[name] = {papers:[], coauthors:new Set(), topics:new Set(), inst:new Set()};
+    const e = authorIndex[name];
+    e.papers.push(idx);
+    (d.au||[]).forEach(o=>{ if(o!==name) e.coauthors.add(o); });
+    (d.d||[]).forEach(t=>e.topics.add(t));
+    if(d.inst) e.inst.add(d.inst);
+  });
+});
+const authorNames = Object.keys(authorIndex).sort();
+
+const journalIndex = {};
+DATA.forEach((d, idx)=>{
+  if(!d.rv) return;
+  if(!journalIndex[d.rv]) journalIndex[d.rv] = {papers:[], q:d.q};
+  journalIndex[d.rv].papers.push(idx);
+});
+const journalNames = Object.keys(journalIndex).sort();
+
+const years = DATA.map(d=>d.y).filter(Boolean);
+const minY = Math.min(...years), maxY = Math.max(...years);
+const allCountries = new Set();
+DATA.forEach(d=>{ if(d.p) d.p.split(';').forEach(c=>allCountries.add(c.trim())); });
+const allDisc = new Set();
+DATA.forEach(d=> (d.d||[]).forEach(x=>allDisc.add(x)));
+const allInst = new Set(DATA.map(d=>d.inst).filter(Boolean));
+
+document.getElementById('statRow').innerHTML = `
+  <div class="stat"><span class="n">${DATA.length}</span><span class="l">Artículos</span></div>
+  <div class="stat"><span class="n">${allDisc.size}</span><span class="l">Disciplinas</span></div>
+  <div class="stat"><span class="n">${authorNames.length}</span><span class="l">Autores/as</span></div>
+  <div class="stat"><span class="n">${journalNames.length}</span><span class="l">Revistas</span></div>
+  <div class="stat"><span class="n">${allInst.size}</span><span class="l">Instituciones</span></div>
+  <div class="stat"><span class="n">${minY}–${maxY}</span><span class="l">Período</span></div>
+`;
+
+const multiAuthorCount = authorNames.filter(n=>authorIndex[n].papers.length>=2).length;
+document.getElementById('hintAuthors').textContent = authorNames.length;
+document.getElementById('hintMulti').textContent = multiAuthorCount;
+
+const adl = document.getElementById('authorList');
+authorNames.forEach(n=>{ const o=document.createElement('option'); o.value=n; adl.appendChild(o); });
+const jdl = document.getElementById('journalList');
+journalNames.forEach(n=>{ const o=document.createElement('option'); o.value=n; jdl.appendChild(o); });
+
+// ============ nav scroll-spy ============
+const navBtns = [...document.querySelectorAll('#navBar button')];
+navBtns.forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.getElementById(b.dataset.target).scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+const sections = navBtns.map(b=>document.getElementById(b.dataset.target));
+window.addEventListener('scroll', ()=>{
+  let current = sections[0];
+  sections.forEach(s=>{ if(window.scrollY + 90 >= s.offsetTop) current = s; });
+  navBtns.forEach(b=> b.classList.toggle('active', b.dataset.target===current.id));
+}, {passive:true});
+
+// ============ filter state (shared between charts & explorer) ============
+const filters = { year:'', disc:'', country:'', method:'', type:'', quartil:'', journal:'', inst:'' };
+
+function setFilter(key, value){
+  filters[key] = (filters[key] === value) ? '' : value; // toggle off if same
+  syncControls();
+  page = 0;
+  render();
+  document.getElementById('secExplorador').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function syncControls(){
+  document.getElementById('filterYear').value = filters.year;
+  document.getElementById('filterDisc').value = filters.disc;
+  document.getElementById('filterCountry').value = filters.country;
+}
+
+function renderActiveFilters(){
+  const labels = {
+    year: v=>`Año: ${v}`, disc: v=>`Tema: ${v}`, country: v=>`País: ${countryLabel(v)}`,
+    method: v=>`Método: ${v}`, type: v=>`Tipo: ${v}`, quartil: v=>`Cuartil: ${v}`,
+    journal: v=>`Revista: ${v}`, inst: v=>`Institución: ${v}`
+  };
+  const chips = Object.entries(filters).filter(([k,v])=>v).map(([k,v])=>
+    `<span class="afchip" data-key="${k}">${esc(labels[k](v))}</span>`);
+  document.getElementById('activeFilters').innerHTML = chips.join('');
+  [...document.querySelectorAll('.afchip')].forEach(c=>{
+    c.addEventListener('click', ()=>{ filters[c.dataset.key]=''; syncControls(); page=0; render(); });
+  });
+}
+
+// ============ charts ============
+Chart.defaults.color = '#c9c0a8';
+Chart.defaults.font.family = "'Inter','Helvetica Neue',Arial,sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.borderColor = '#2c3547';
+const SIGNAL = '#ffb238';
+const TEAL = '#4fb8a6';
+const PALETTE = ['#ffb238','#4fb8a6','#e3815c','#8aa9d6','#c98ed6','#7fc97f','#d4c46a','#a08bd6'];
+
+try {
+// Year
+const yearCounts = {};
+for(let y=minY;y<=maxY;y++) yearCounts[y]=0;
+years.forEach(y=>yearCounts[y]++);
+const yearLabels = Object.keys(yearCounts);
+new Chart(document.getElementById('chartYear'), {
+  type:'bar',
+  data:{labels:yearLabels, datasets:[{data:Object.values(yearCounts), backgroundColor:SIGNAL, borderRadius:2}]},
+  options:{plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{grid:{color:'#2c3547'}}},
+    onClick:(e,els)=>{ if(els.length) setFilter('year', yearLabels[els[0].index]); }}
+});
+
+// Disciplines
+const discFlat = [];
+DATA.forEach(d=>(d.d||[]).forEach(x=>discFlat.push(x)));
+const discTop = topCounts(discFlat, 9);
+new Chart(document.getElementById('chartDisc'), {
+  type:'bar',
+  data:{labels:discTop.map(x=>x[0]), datasets:[{data:discTop.map(x=>x[1]), backgroundColor:TEAL, borderRadius:2}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{grid:{color:'#2c3547'}},y:{grid:{display:false}}},
+    onClick:(e,els)=>{ if(els.length) setFilter('disc', discTop[els[0].index][0]); }}
+});
+
+// Methods
+const methodFlat = [];
+DATA.forEach(d=>(d.m||[]).forEach(x=>methodFlat.push(x)));
+const methodTop = topCounts(methodFlat, 8);
+new Chart(document.getElementById('chartMethod'), {
+  type:'bar',
+  data:{labels:methodTop.map(x=>x[0]), datasets:[{data:methodTop.map(x=>x[1]), backgroundColor:'#8aa9d6', borderRadius:2}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{grid:{color:'#2c3547'}},y:{grid:{display:false}}},
+    onClick:(e,els)=>{ if(els.length) setFilter('method', methodTop[els[0].index][0]); }}
+});
+
+// Type
+const typeTop = topCounts(DATA.map(d=>d.tp).filter(Boolean), 6);
+new Chart(document.getElementById('chartType'), {
+  type:'doughnut',
+  data:{labels:typeTop.map(x=>x[0]), datasets:[{data:typeTop.map(x=>x[1]), backgroundColor:PALETTE, borderColor:'#10141c', borderWidth:2}]},
+  options:{plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:10,font:{size:10}}}},
+    onClick:(e,els)=>{ if(els.length) setFilter('type', typeTop[els[0].index][0]); }}
+});
+
+// Top authors
+const authorTop = Object.entries(authorIndex).map(([n,e])=>[n,e.papers.length]).sort((a,b)=>b[1]-a[1]).slice(0,12);
+new Chart(document.getElementById('chartAuthors'), {
+  type:'bar',
+  data:{labels:authorTop.map(x=>x[0]), datasets:[{data:authorTop.map(x=>x[1]), backgroundColor:'#c98ed6', borderRadius:2}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{grid:{color:'#2c3547'},ticks:{stepSize:1}},y:{grid:{display:false},ticks:{font:{size:10}}}},
+    onClick:(e,els)=>{ if(els.length){ const name=authorTop[els[0].index][0]; document.getElementById('authorSearch').value=name; showAuthorProfile(name); } }}
+});
+
+// Top institutions
+const instTop = topCounts(DATA.map(d=>d.inst).filter(Boolean), 10);
+new Chart(document.getElementById('chartInst'), {
+  type:'bar',
+  data:{labels:instTop.map(x=>x[0].replace(/\s*\(.*\)/,'')), datasets:[{data:instTop.map(x=>x[1]), backgroundColor:'#e3815c', borderRadius:2}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{grid:{color:'#2c3547'}},y:{grid:{display:false},ticks:{font:{size:9.5}}}},
+    onClick:(e,els)=>{ if(els.length) setFilter('inst', instTop[els[0].index][0]); }}
+});
+
+// Top journals
+const journalTop = Object.entries(journalIndex).map(([n,e])=>[n,e.papers.length]).sort((a,b)=>b[1]-a[1]).slice(0,12);
+new Chart(document.getElementById('chartJournals'), {
+  type:'bar',
+  data:{labels:journalTop.map(x=>x[0]), datasets:[{data:journalTop.map(x=>x[1]), backgroundColor:SIGNAL, borderRadius:2}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{grid:{color:'#2c3547'},ticks:{stepSize:1}},y:{grid:{display:false},ticks:{font:{size:9.5}}}},
+    onClick:(e,els)=>{ if(els.length){ const name=journalTop[els[0].index][0]; document.getElementById('journalSearch').value=name; showJournalProfile(name); } }}
+});
+
+// Quartil
+const qOrder = ['Q1','Q2','Q3','Q4'];
+const qCounts = qOrder.map(q=>DATA.filter(d=>d.q===q).length);
+const qNoIndex = DATA.filter(d=>!d.q || !qOrder.includes(d.q)).length;
+const qLabels = [...qOrder,'Sin cuartil / no indexada'];
+new Chart(document.getElementById('chartQuartil'), {
+  type:'doughnut',
+  data:{labels:qLabels, datasets:[{data:[...qCounts, qNoIndex], backgroundColor:[...PALETTE.slice(0,4),'#3a4257'], borderColor:'#10141c', borderWidth:2}]},
+  options:{plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:12}}},
+    onClick:(e,els)=>{ if(els.length && els[0].index<4) setFilter('quartil', qOrder[els[0].index]); }}
+});
+} catch(e) { console.error('Error al cargar los gráficos:', e); }
+
+// ============ author profile ============
+const authorProfilePanel = document.getElementById('authorProfilePanel');
+const authorSearch = document.getElementById('authorSearch');
+const clearAuthorBtn = document.getElementById('clearAuthorProfile');
+
+function showAuthorProfile(name){
+  const e = authorIndex[name];
+  if(!e) { authorProfilePanel.classList.remove('show'); clearAuthorBtn.style.display='none'; return; }
+  document.getElementById('aName').textContent = name;
+  document.getElementById('aMeta').textContent = `${e.papers.length} publicación(es) · ${e.coauthors.size} coautor(es) · ${e.topics.size} tema(s)`;
+  document.getElementById('aTopics').innerHTML = [...e.topics].map(t=>`<span class="chip topic">${esc(t)}</span>`).join('') || '<span style="color:var(--paper-dim);font-size:13px;">Sin clasificar</span>';
+  document.getElementById('aInst').innerHTML = [...e.inst].map(t=>`<span class="chip topic">${esc(t)}</span>`).join('') || '<span style="color:var(--paper-dim);font-size:13px;">Sin dato</span>';
+  document.getElementById('aCoauthors').innerHTML = [...e.coauthors].sort().map(c=>`<span class="chip" data-author="${esc(c)}">${esc(c)}</span>`).join('') || '<span style="color:var(--paper-dim);font-size:13px;">Sin coautores registrados</span>';
+  document.getElementById('aPapers').innerHTML = e.papers.slice().sort((a,b)=>(DATA[b].y||0)-(DATA[a].y||0))
+    .map(idx=>{ const d=DATA[idx]; return d.u
+      ? `<a href="${d.u}" target="_blank" rel="noopener"><span class="yy">${d.y||'—'}</span>${esc(d.t)}</a>`
+      : `<span class="nolink"><span class="yy">${d.y||'—'}</span>${esc(d.t)}</span>`; }).join('');
+  authorProfilePanel.classList.add('show');
+  clearAuthorBtn.style.display = 'inline-block';
+}
+authorSearch.addEventListener('input', ()=>{ const v=authorSearch.value.trim(); if(authorIndex[v]) showAuthorProfile(v); });
+clearAuthorBtn.addEventListener('click', ()=>{ authorSearch.value=''; authorProfilePanel.classList.remove('show'); clearAuthorBtn.style.display='none'; });
+
+// ============ journal profile ============
+const journalProfilePanel = document.getElementById('journalProfilePanel');
+const journalSearch = document.getElementById('journalSearch');
+const clearJournalBtn = document.getElementById('clearJournalProfile');
+
+function showJournalProfile(name){
+  const e = journalIndex[name];
+  if(!e) { journalProfilePanel.classList.remove('show'); clearJournalBtn.style.display='none'; return; }
+  document.getElementById('jName').textContent = name;
+  document.getElementById('jMeta').textContent = `${e.papers.length} artículo(s) del corpus${e.q ? ' · Cuartil '+e.q : ''}`;
+  document.getElementById('jPapers').innerHTML = e.papers.slice().sort((a,b)=>(DATA[b].y||0)-(DATA[a].y||0))
+    .map(idx=>{ const d=DATA[idx]; const au=(d.au||[]).join(', ');
+      return d.u
+      ? `<a href="${d.u}" target="_blank" rel="noopener"><span class="yy">${d.y||'—'}</span>${esc(d.t)}${au? ' — '+esc(au):''}</a>`
+      : `<span class="nolink"><span class="yy">${d.y||'—'}</span>${esc(d.t)}${au? ' — '+esc(au):''}</span>`; }).join('');
+  journalProfilePanel.classList.add('show');
+  clearJournalBtn.style.display = 'inline-block';
+}
+journalSearch.addEventListener('input', ()=>{ const v=journalSearch.value.trim(); if(journalIndex[v]) showJournalProfile(v); });
+clearJournalBtn.addEventListener('click', ()=>{ journalSearch.value=''; journalProfilePanel.classList.remove('show'); clearJournalBtn.style.display='none'; });
+
+// click on coauthor chip within author profile -> jump to that author
+document.addEventListener('click', (ev)=>{
+  const t = ev.target;
+  if(t.dataset && t.dataset.author){
+    authorSearch.value = t.dataset.author;
+    showAuthorProfile(t.dataset.author);
+    document.getElementById('secAutores').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+});
+
+// ============ collaborator finder ============
+const collabState = { discs: new Set(), country: '', sort: 'papers' };
+const discPickerEl = document.getElementById('collabDiscPicker');
+[...allDisc].sort().forEach(d=>{
+  const c = document.createElement('span');
+  c.className = 'chip disc-toggle';
+  c.textContent = d;
+  c.dataset.disc = d;
+  c.addEventListener('click', ()=>{
+    if(collabState.discs.has(d)){ collabState.discs.delete(d); c.classList.remove('on'); }
+    else { collabState.discs.add(d); c.classList.add('on'); }
+    renderCollab();
+  });
+  discPickerEl.appendChild(c);
+});
+const collabCountrySel = document.getElementById('collabCountry');
+[...allCountries].sort((a,b)=>countryLabel(a).localeCompare(countryLabel(b))).forEach(c=>{
+  const o=document.createElement('option'); o.value=c; o.textContent=countryLabel(c); collabCountrySel.appendChild(o);
+});
+collabCountrySel.addEventListener('change', ()=>{ collabState.country = collabCountrySel.value; renderCollab(); });
+document.getElementById('collabSort').addEventListener('change', (e)=>{ collabState.sort = e.target.value; renderCollab(); });
+
+function renderCollab(){
+  const resultsEl = document.getElementById('collabResults');
+  const countEl = document.getElementById('collabCount');
+  if(collabState.discs.size === 0){
+    resultsEl.innerHTML = '<p class="collab-empty">Elegí al menos una disciplina arriba para ver el ranking de autores/as.</p>';
+    countEl.textContent = '';
+    return;
+  }
+  const matches = Object.entries(authorIndex).map(([name, e])=>{
+    const matchedTopics = [...e.topics].filter(t=>collabState.discs.has(t));
+    if(matchedTopics.length === 0) return null;
+    if(collabState.country){
+      const inCountry = e.papers.some(idx=>{
+        const d = DATA[idx];
+        return d.p && d.p.split(';').map(x=>x.trim()).includes(collabState.country);
+      });
+      if(!inCountry) return null;
+    }
+    const matchedPapers = e.papers.filter(idx=>(DATA[idx].d||[]).some(t=>collabState.discs.has(t)));
+    const lastYear = Math.max(...matchedPapers.map(idx=>DATA[idx].y||0));
+    return { name, e, matchedTopics, matchedPapers, lastYear };
+  }).filter(Boolean);
+
+  if(collabState.sort==='papers') matches.sort((a,b)=>b.matchedPapers.length - a.matchedPapers.length);
+  else if(collabState.sort==='breadth') matches.sort((a,b)=>b.e.coauthors.size - a.e.coauthors.size);
+  else if(collabState.sort==='recent') matches.sort((a,b)=>b.lastYear - a.lastYear);
+
+  countEl.innerHTML = `<b>${matches.length}</b> autores/as encontrados/as para ${[...collabState.discs].map(d=>'<b>'+esc(d)+'</b>').join(' + ')}${collabState.country? ' en <b>'+esc(countryLabel(collabState.country))+'</b>':''}`;
+
+  resultsEl.innerHTML = matches.slice(0,30).map(m=>{
+    const inst = [...m.e.inst].slice(0,2).join(' · ') || 'Institución sin dato';
+    const topicsHtml = [...m.e.topics].slice(0,5).map(t=>`<span>${esc(t)}</span>`).join('');
+    return `<div class="collab-card">
+      <p class="cname" data-author="${esc(m.name)}">${esc(m.name)}</p>
+      <p class="cinst">${esc(inst)}</p>
+      <div class="cstats">
+        <span>${m.matchedPapers.length} en este cruce</span>
+        <span>${m.e.papers.length} en total</span>
+        <span>${m.e.coauthors.size} coautor(es)</span>
+      </div>
+      <div class="ctopics">${topicsHtml}</div>
+    </div>`;
+  }).join('') || '<p class="collab-empty">No se encontraron autores/as con esos filtros.</p>';
+}
+
+document.getElementById('collabResults').addEventListener('click', (ev)=>{
+  const t = ev.target;
+  if(t.dataset && t.dataset.author){
+    authorSearch.value = t.dataset.author;
+    showAuthorProfile(t.dataset.author);
+    document.getElementById('secAutores').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+});
+
+renderCollab();
+
+// ============ co-authorship network graph ============
+(function(){
+  const eligibleAuthors = authorNames.filter(n => authorIndex[n].papers.length >= 2);
+  const nodeSet = new Set(eligibleAuthors);
+
+  // primary discipline per author = most frequent topic among their papers
+  function primaryDiscipline(name){
+    const counts = {};
+    authorIndex[name].papers.forEach(idx=>{
+      (DATA[idx].d||[]).forEach(t=>{ counts[t]=(counts[t]||0)+1; });
+    });
+    const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    return entries.length ? entries[0][0] : 'Sin clasificar';
+  }
+
+  const discColorList = ['#ffb238','#4fb8a6','#e3815c','#8aa9d6','#c98ed6','#7fc97f','#d4c46a','#a08bd6','#6fb1ff','#ff8aa6'];
+  const discsSeen = [...new Set(eligibleAuthors.map(primaryDiscipline))];
+  const discColor = {};
+  discsSeen.forEach((d,i)=> discColor[d] = discColorList[i % discColorList.length]);
+
+  const nodes = eligibleAuthors.map(name => ({
+    id: name,
+    papers: authorIndex[name].papers.length,
+    disc: primaryDiscipline(name)
+  }));
+
+  const edgeMap = new Map();
+  eligibleAuthors.forEach(name=>{
+    authorIndex[name].coauthors.forEach(co=>{
+      if(!nodeSet.has(co)) return;
+      const key = [name, co].sort().join('|||');
+      edgeMap.set(key, (edgeMap.get(key)||0) + 1);
+    });
+  });
+  const links = [...edgeMap.entries()].map(([key, weight])=>{
+    const [source, target] = key.split('|||');
+    return { source, target, weight };
+  });
+
+  document.getElementById('graphNodeCount').textContent = nodes.length;
+  document.getElementById('graphEdgeCount').textContent = links.length;
+
+  // legend
+  const legendEl = document.getElementById('graphDiscLegend');
+  legendEl.innerHTML = discsSeen.slice(0,10).map(d=>
+    `<span class="chip"><span class="legend-dot" style="background:${discColor[d]}"></span>${esc(d)}</span>`).join('');
+
+  if(nodes.length === 0){
+    document.getElementById('graphWrap').innerHTML = '<p class="collab-empty" style="padding:24px;">No hay suficientes datos de coautoría para graficar.</p>';
+    return;
+  }
+
+  const svg = d3.select('#graphSvg');
+  const wrapEl = document.getElementById('graphWrap');
+  let W = wrapEl.clientWidth, H = wrapEl.clientHeight;
+  svg.attr('viewBox', [0,0,W,H]);
+
+  const g = svg.append('g');
+  const linkG = g.append('g').attr('stroke', '#3a4257').attr('stroke-opacity', 0.5);
+  const nodeG = g.append('g');
+
+  const linkSel = linkG.selectAll('line').data(links).join('line')
+    .attr('stroke-width', d=>Math.min(1+d.weight*0.6, 4));
+
+  const radius = d => 4 + Math.sqrt(d.papers) * 2.2;
+
+  const nodeSel = nodeG.selectAll('circle').data(nodes).join('circle')
+    .attr('r', radius)
+    .attr('fill', d=>discColor[d.disc])
+    .attr('stroke', '#10141c')
+    .attr('stroke-width', 1.2)
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (event,d)=>{ if(!event.active) sim.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (event,d)=>{ d.fx=event.x; d.fy=event.y; })
+      .on('end', (event,d)=>{ if(!event.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  const tooltip = document.getElementById('graphTooltip');
+
+  nodeSel.on('mouseenter', (event,d)=>{
+    const e = authorIndex[d.id];
+    tooltip.innerHTML = `<b>${esc(d.id)}</b>${esc(d.disc)} · ${d.papers} publicación(es) · ${e.coauthors.size} coautor(es)`;
+    tooltip.classList.add('show');
+  }).on('mousemove', (event)=>{
+    const rect = wrapEl.getBoundingClientRect();
+    tooltip.style.left = (event.clientX - rect.left + 14) + 'px';
+    tooltip.style.top = (event.clientY - rect.top + 10) + 'px';
+  }).on('mouseleave', ()=>{ tooltip.classList.remove('show'); })
+  .on('click', (event,d)=>{
+    highlightNode(d.id);
+    authorSearch.value = d.id;
+    showAuthorProfile(d.id);
+  });
+
+  function highlightNode(name){
+    const e = authorIndex[name];
+    const connected = new Set([name, ...e.coauthors]);
+    nodeSel.attr('opacity', n => connected.has(n.id) ? 1 : 0.12);
+    linkSel.attr('opacity', l => (l.source.id===name || l.target.id===name) ? 0.9 : 0.04)
+           .attr('stroke', l => (l.source.id===name || l.target.id===name) ? '#ffb238' : '#3a4257');
+  }
+  function clearHighlight(){
+    nodeSel.attr('opacity', 1);
+    linkSel.attr('opacity', 0.5).attr('stroke', '#3a4257');
+  }
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(34).strength(0.35))
+    .force('charge', d3.forceManyBody().strength(-46))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collide', d3.forceCollide().radius(d=>radius(d)+2));
+
+  sim.on('tick', ()=>{
+    linkSel.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y)
+           .attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+    nodeSel.attr('cx', d=>d.x).attr('cy', d=>d.y);
+  });
+
+  const zoom = d3.zoom().scaleExtent([0.25, 6]).on('zoom', (event)=>{
+    g.attr('transform', event.transform);
+  });
+  svg.call(zoom);
+
+  document.getElementById('graphReset').addEventListener('click', ()=>{
+    svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+    clearHighlight();
+    document.getElementById('graphSearch').value = '';
+  });
+
+  document.getElementById('graphSearch').addEventListener('change', ()=>{
+    const name = document.getElementById('graphSearch').value.trim();
+    const node = nodes.find(n=>n.id===name);
+    if(!node) return;
+    highlightNode(name);
+    authorSearch.value = name;
+    showAuthorProfile(name);
+    const scale = 1.6;
+    const transform = d3.zoomIdentity.translate(W/2 - node.x*scale, H/2 - node.y*scale).scale(scale);
+    svg.transition().duration(500).call(zoom.transform, transform);
+  });
+
+  window.addEventListener('resize', ()=>{
+    W = wrapEl.clientWidth; H = wrapEl.clientHeight;
+    svg.attr('viewBox', [0,0,W,H]);
+  });
+})();
+
+// ============ explorer ============
+const yearSel = document.getElementById('filterYear');
+[...new Set(years)].sort((a,b)=>b-a).forEach(y=>{ const o=document.createElement('option'); o.value=y; o.textContent=y; yearSel.appendChild(o); });
+const discSel = document.getElementById('filterDisc');
+[...allDisc].sort().forEach(d=>{ const o=document.createElement('option'); o.value=d; o.textContent=d; discSel.appendChild(o); });
+const countrySel = document.getElementById('filterCountry');
+[...allCountries].sort((a,b)=>countryLabel(a).localeCompare(countryLabel(b))).forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=countryLabel(c); countrySel.appendChild(o); });
+
+yearSel.addEventListener('change', ()=>{ filters.year=yearSel.value; page=0; render(); });
+discSel.addEventListener('change', ()=>{ filters.disc=discSel.value; page=0; render(); });
+countrySel.addEventListener('change', ()=>{ filters.country=countrySel.value; page=0; render(); });
+
+let page = 0;
+const PAGE_SIZE = 20;
+
+function getFiltered(){
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  return DATA.filter(d=>{
+    if(filters.year && String(d.y)!==filters.year) return false;
+    if(filters.disc && !(d.d||[]).includes(filters.disc)) return false;
+    if(filters.country && !(d.p && d.p.split(';').map(x=>x.trim()).includes(filters.country))) return false;
+    if(filters.method && !(d.m||[]).includes(filters.method)) return false;
+    if(filters.type && d.tp!==filters.type) return false;
+    if(filters.quartil && d.q!==filters.quartil) return false;
+    if(filters.journal && d.rv!==filters.journal) return false;
+    if(filters.inst && d.inst!==filters.inst) return false;
+    if(q){
+      const hay = (d.t+' '+(d.au||[]).join(' ')+' '+d.rv).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function render(){
+  renderActiveFilters();
+  const filtered = getFiltered().sort((a,b)=>(b.y||0)-(a.y||0));
+  document.getElementById('countN').textContent = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  page = Math.min(page, totalPages-1);
+  const slice = filtered.slice(page*PAGE_SIZE, page*PAGE_SIZE+PAGE_SIZE);
+
+  document.getElementById('cardList').innerHTML = slice.map(d=>{
+    const tags = [];
+    if(d.q) tags.push(`<span class="tag q" data-quartil="${esc(d.q)}">${esc(d.q)}</span>`);
+    if(d.tp) tags.push(`<span class="tag" data-type="${esc(d.tp)}">${esc(d.tp)}</span>`);
+    (d.d||[]).slice(0,2).forEach(x=>tags.push(`<span class="tag" data-disc="${esc(x)}">${esc(x)}</span>`));
+    const titleHtml = d.u ? `<a class="ti" href="${d.u}" target="_blank" rel="noopener">${esc(d.t)}</a>` : `<span class="ti">${esc(d.t)}</span>`;
+    const authorsHtml = (d.au||[]).map(a=>`<span class="link-tag" data-author="${esc(a)}">${esc(a)}</span>`).join(', ');
+    const journalHtml = d.rv ? `<span class="link-tag" data-journal="${esc(d.rv)}">${esc(d.rv)}</span> · ` : '';
+    return `<div class="paper-card">
+      <div class="yr">${d.y||'—'}</div>
+      <div>
+        ${titleHtml}
+        <div class="meta">${authorsHtml ? authorsHtml+' · ' : ''}${journalHtml}${d.p ? countryLabel(primaryCountry(d.p)) : ''}</div>
+        <div class="meta" style="margin-top:6px;">${tags.join('')}</div>
+      </div>
+    </div>`;
+  }).join('') || '<p style="color:var(--paper-dim);font-family:var(--sans);">No se encontraron artículos con estos filtros.</p>';
+
+  document.getElementById('pageInfo').textContent = `página ${page+1} de ${totalPages}`;
+  document.getElementById('prevPage').disabled = page<=0;
+  document.getElementById('nextPage').disabled = page>=totalPages-1;
+}
+
+// delegated clicks within card list: authors -> profile, journal -> profile, tags -> filter
+document.getElementById('cardList').addEventListener('click', (ev)=>{
+  const t = ev.target;
+  if(t.dataset.author){
+    authorSearch.value = t.dataset.author; showAuthorProfile(t.dataset.author);
+    document.getElementById('secAutores').scrollIntoView({behavior:'smooth', block:'start'});
+  } else if(t.dataset.journal){
+    journalSearch.value = t.dataset.journal; showJournalProfile(t.dataset.journal);
+    document.getElementById('secRevistas').scrollIntoView({behavior:'smooth', block:'start'});
+  } else if(t.dataset.disc){
+    filters.disc = t.dataset.disc; discSel.value = filters.disc; page=0; render();
+  } else if(t.dataset.type){
+    filters.type = t.dataset.type; page=0; render();
+  } else if(t.dataset.quartil){
+    filters.quartil = t.dataset.quartil; page=0; render();
+  }
+});
+
+document.getElementById('searchBox').addEventListener('input', ()=>{page=0;render();});
+document.getElementById('prevPage').addEventListener('click', ()=>{page--;render();});
+document.getElementById('nextPage').addEventListener('click', ()=>{page++;render();});
+
+render();
+</script>
+</body>
+</html>
